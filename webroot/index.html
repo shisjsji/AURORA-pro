@@ -1,0 +1,732 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#f2f2f7">
+  <title>AURORA 音频</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+      --bg: #f2f2f7;
+      --surface: #ffffff;
+      --surface-2: #e5e5ea;
+      --line: rgba(60, 60, 67, .16);
+      --text: #1c1c1e;
+      --muted: #6e6e73;
+      --accent: #0a84ff;
+      --accent-soft: rgba(10, 132, 255, .12);
+      --positive: #34c759;
+      --warning: #ff9f0a;
+      --negative: #ff3b30;
+      --page-pad: 16px;
+      --radius-group: 16px;
+      --radius-control: 12px;
+      --control-min: 44px;
+      --fast: 160ms;
+      --state: 220ms;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #000000;
+        --surface: #1c1c1e;
+        --surface-2: #2c2c2e;
+        --line: rgba(235, 235, 245, .16);
+        --text: #f2f2f7;
+        --muted: #98989d;
+        --accent-soft: rgba(10, 132, 255, .2);
+      }
+    }
+    * { box-sizing: border-box; }
+    html, body { min-height: 100%; margin: 0; background: var(--bg); color: var(--text); }
+    body {
+      font: 15px/1.45 -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", sans-serif;
+      -webkit-font-smoothing: antialiased;
+    }
+    button, input, select { font: inherit; }
+    button { color: inherit; }
+    button:focus-visible, input:focus-visible, select:focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 2px;
+    }
+    button:disabled, input:disabled, select:disabled {
+      cursor: wait;
+      opacity: .52;
+    }
+    .app-shell { max-width: 720px; min-height: 100vh; margin: 0 auto; padding-bottom: calc(86px + env(safe-area-inset-bottom)); }
+    .topbar {
+      position: sticky; top: 0; z-index: 5; display: flex; align-items: center; justify-content: space-between;
+      padding: calc(12px + env(safe-area-inset-top)) var(--page-pad) 12px;
+      background: color-mix(in srgb, var(--bg) 90%, transparent);
+      backdrop-filter: saturate(180%) blur(18px);
+    }
+    .eyebrow { margin: 0 0 2px; color: var(--muted); font-size: 11px; font-weight: 700; letter-spacing: .08em; }
+    h1, h2, h3, p { margin: 0; }
+    h1 { font-size: 26px; line-height: 1.15; letter-spacing: -.02em; }
+    h2 { font-size: 17px; line-height: 1.2; }
+    h3 { font-size: 15px; }
+    .topbar-action { display: flex; align-items: center; gap: 10px; }
+    .switch {
+      position: relative; width: 52px; height: 32px; min-width: 52px; padding: 0;
+      border: 0; border-radius: 18px; background: var(--surface-2); cursor: pointer;
+      transition: background var(--state) ease;
+    }
+    .switch::after {
+      content: ""; position: absolute; top: 3px; left: 3px; width: 26px; height: 26px;
+      border-radius: 50%; background: #fff; box-shadow: 0 2px 5px rgba(0,0,0,.2);
+      transition: transform var(--state) ease;
+    }
+    .switch[aria-checked="true"] { background: var(--positive); }
+    .switch[aria-checked="true"]::after { transform: translateX(20px); }
+    .switch[aria-disabled="true"] { opacity: .45; cursor: not-allowed; }
+    .page { display: none; padding: 4px var(--page-pad) 18px; animation: page-in var(--state) ease both; }
+    .page.active { display: block; }
+    @keyframes page-in { from { opacity: .2; transform: translateY(5px); } to { opacity: 1; transform: none; } }
+    .status-line {
+      display: flex; align-items: center; gap: 10px; margin: 8px 0 18px; min-height: 54px;
+      padding: 12px; border-radius: var(--radius-group); background: var(--surface);
+    }
+    .status-dot { width: 10px; height: 10px; flex: 0 0 10px; border-radius: 50%; background: var(--muted); }
+    .status-dot.active { background: var(--positive); }
+    .status-dot.warn { background: var(--warning); }
+    .status-dot.error { background: var(--negative); }
+    .status-copy { min-width: 0; flex: 1; }
+    .status-copy strong, .status-copy small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .status-copy strong { font-size: 15px; }
+    .status-copy small { color: var(--muted); font-size: 12px; }
+    .icon-button, .text-button, .primary-button, .secondary-button, .tab-button, .preset-button {
+      min-height: var(--control-min); border: 0; cursor: pointer; -webkit-tap-highlight-color: transparent;
+    }
+    .icon-button {
+      width: 44px; border-radius: 50%; background: var(--surface-2); color: var(--accent); font-size: 20px;
+    }
+    .group { margin: 0 0 18px; border-radius: var(--radius-group); background: var(--surface); overflow: hidden; }
+    .group-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 16px 16px 10px; }
+    .group-header small { color: var(--muted); font-size: 12px; text-align: right; }
+    .group-note { padding: 0 16px 14px; color: var(--muted); font-size: 12px; }
+    .preset-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; padding: 6px 12px 14px; }
+    .preset-button {
+      display: flex; align-items: center; justify-content: flex-start; gap: 8px; padding: 0 12px;
+      border: 1px solid var(--line); border-radius: var(--radius-control); background: transparent; text-align: left;
+      transition: background var(--fast) ease, border-color var(--fast) ease, color var(--fast) ease;
+    }
+    .preset-button[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); }
+    .preset-button strong { display: block; font-size: 14px; }
+    .preset-button small { display: block; color: var(--muted); font-size: 11px; }
+    .range-row { display: grid; grid-template-columns: 70px minmax(0, 1fr) 44px; align-items: center; gap: 10px; min-height: 58px; padding: 0 16px; border-top: 1px solid var(--line); }
+    .range-row:first-of-type { border-top: 0; }
+    .range-row > span { font-weight: 600; }
+    .range-row output { color: var(--muted); font-variant-numeric: tabular-nums; text-align: right; }
+    input[type="range"] { width: 100%; accent-color: var(--accent); }
+    .row {
+      display: flex; align-items: center; gap: 12px; min-height: var(--control-min); padding: 10px 16px; border-top: 1px solid var(--line);
+    }
+    .row:first-child { border-top: 0; }
+    .row-copy { min-width: 0; flex: 1; }
+    .row-copy strong, .row-copy small { display: block; }
+    .row-copy strong { font-size: 14px; font-weight: 600; }
+    .row-copy small { color: var(--muted); font-size: 12px; }
+    .row-value { color: var(--muted); font-size: 13px; text-align: right; }
+    .row select {
+      min-height: 44px; max-width: 155px; padding: 0 28px 0 10px; border: 1px solid var(--line);
+      border-radius: 10px; background: var(--surface); color: var(--text);
+    }
+    .text-button { padding: 0 12px; background: transparent; color: var(--accent); font-weight: 600; }
+    .primary-button, .secondary-button { padding: 0 16px; border-radius: var(--radius-control); font-weight: 700; }
+    .primary-button { background: var(--accent); color: #fff; }
+    .secondary-button { background: var(--surface-2); color: var(--text); }
+    .button-row { display: flex; gap: 10px; padding: 12px 16px 16px; }
+    .button-row > button { flex: 1; }
+    .state-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); border-top: 1px solid var(--line); }
+    .state-cell { min-width: 0; padding: 12px 16px; border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+    .state-cell:nth-child(2n) { border-right: 0; }
+    .state-cell:nth-last-child(-n+2) { border-bottom: 0; }
+    .state-cell small, .state-cell strong { display: block; }
+    .state-cell small { color: var(--muted); font-size: 11px; }
+    .state-cell strong { margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; }
+    .tip { margin: 2px 4px; color: var(--muted); font-size: 12px; }
+    .page-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; margin: 8px 0 18px; }
+    .page-head p { margin-top: 5px; color: var(--muted); font-size: 13px; }
+    .eq-list { margin-bottom: 18px; border-radius: var(--radius-group); background: var(--surface); overflow: hidden; }
+    .eq-row { display: grid; grid-template-columns: 54px minmax(0, 1fr) 52px; align-items: center; gap: 10px; min-height: 58px; padding: 0 12px; border-top: 1px solid var(--line); }
+    .eq-row:first-child { border-top: 0; }
+    .eq-frequency { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+    .eq-row output { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; text-align: right; }
+    .empty { padding: 24px 16px; color: var(--muted); text-align: center; }
+    .diagnostic-pre { max-height: 280px; margin: 0 16px 14px; padding: 12px; overflow: auto; border-radius: 10px; background: var(--bg); color: var(--muted); font: 11px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; white-space: pre-wrap; overflow-wrap: anywhere; }
+    .tabbar {
+      position: fixed; right: 0; bottom: 0; left: 0; z-index: 10; display: grid; grid-template-columns: repeat(4, 1fr);
+      max-width: 720px; margin: 0 auto; padding: 8px 10px calc(8px + env(safe-area-inset-bottom));
+      border-top: 1px solid var(--line); background: color-mix(in srgb, var(--surface) 88%, transparent);
+      backdrop-filter: saturate(180%) blur(20px);
+    }
+    .tab-button { display: grid; place-items: center; gap: 2px; min-height: 48px; border-radius: 12px; background: transparent; color: var(--muted); }
+    .tab-button[aria-selected="true"] { background: var(--accent-soft); color: var(--accent); }
+    .tab-icon { font-size: 19px; line-height: 1; }
+    .tab-label { font-size: 11px; }
+    .toast {
+      position: fixed; right: 16px; bottom: calc(86px + env(safe-area-inset-bottom)); left: 16px; z-index: 20;
+      max-width: 520px; margin: 0 auto; padding: 12px 14px; border: 1px solid var(--line); border-radius: 12px;
+      background: var(--surface); box-shadow: 0 8px 28px rgba(0,0,0,.16); opacity: 0; pointer-events: none;
+      transform: translateY(8px); transition: opacity var(--fast) ease, transform var(--fast) ease;
+    }
+    .toast.show { opacity: 1; transform: none; }
+    .toast.error { border-color: color-mix(in srgb, var(--negative) 55%, var(--line)); }
+    .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
+    @media (min-width: 560px) {
+      .preset-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+      .state-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+      .state-cell:nth-child(2n) { border-right: 1px solid var(--line); }
+      .state-cell:nth-child(4n) { border-right: 0; }
+      .state-cell:nth-last-child(-n+2) { border-bottom: 1px solid var(--line); }
+      .state-cell:nth-last-child(-n+4) { border-bottom: 0; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">AURORA 音频引擎</p>
+        <h1>音频控制</h1>
+      </div>
+      <div class="topbar-action">
+        <span id="masterLabel" class="sr-only">AURORA 调音</span>
+        <button id="masterToggle" class="switch" type="button" role="switch" aria-checked="true" aria-label="启用 AURORA 调音"></button>
+      </div>
+    </header>
+
+    <main>
+      <section id="page-home" class="page active" data-page="home">
+        <div class="status-line">
+          <span id="statusDot" class="status-dot"></span>
+          <div class="status-copy">
+            <strong id="statusTitle">正在读取设备状态</strong>
+            <small id="statusMeta">等待 KernelSU 音频接口</small>
+          </div>
+          <button id="refreshButton" class="icon-button" type="button" aria-label="刷新状态">↻</button>
+        </div>
+
+        <section class="group">
+          <div class="group-header">
+            <h2>当前听感</h2>
+            <button id="abButton" class="text-button" type="button">A/B 试听</button>
+          </div>
+          <p class="group-note">预设会写入设备原厂 Dolby XML 的实际调音通道，切换后可直接试听差异。</p>
+          <div id="presetGrid" class="preset-grid"></div>
+        </section>
+
+        <section class="group">
+          <div class="group-header">
+            <h2>快速调音</h2>
+            <small id="macroNote">改动后点应用</small>
+          </div>
+          <label class="range-row">
+            <span>低频</span>
+            <input id="macroBass" type="range" min="-6" max="6" step="1" value="0" aria-label="低频宏调节">
+            <output id="macroBassValue">0 档</output>
+          </label>
+          <label class="range-row">
+            <span>人声</span>
+            <input id="macroVoice" type="range" min="-6" max="6" step="1" value="0" aria-label="人声宏调节">
+            <output id="macroVoiceValue">0 档</output>
+          </label>
+          <label class="range-row">
+            <span>空气/亮度</span>
+            <input id="macroAir" type="range" min="-6" max="6" step="1" value="0" aria-label="空气感与高频亮度宏调节">
+            <output id="macroAirValue">0 档</output>
+          </label>
+          <div class="button-row">
+            <button id="applyHome" class="primary-button" type="button">应用改动</button>
+            <button id="openEq" class="secondary-button" type="button">编辑 EQ</button>
+          </div>
+        </section>
+
+        <section class="group">
+          <div class="group-header">
+            <h2>工作状态</h2>
+            <small id="restartHint">读取中</small>
+          </div>
+          <div class="state-grid">
+            <div class="state-cell"><small>配置</small><strong id="stateConfig">-</strong></div>
+            <div class="state-cell"><small>当前预设</small><strong id="stateProfile">-</strong></div>
+            <div class="state-cell"><small>实际通道</small><strong id="stateXml">-</strong></div>
+            <div class="state-cell"><small>输出</small><strong id="stateRoute">-</strong></div>
+          </div>
+        </section>
+        <p class="tip">原厂安全模式会复制设备 XML 原样运行；音量档位始终保持系统原生设置。</p>
+      </section>
+
+      <section id="page-eq" class="page" data-page="eq">
+          <div class="page-head">
+          <div><h2>用户 EQ</h2><p>每档约 0.32 dB，会映射到原厂两组优化频段。</p></div>
+          <button id="resetEq" class="text-button" type="button">归零</button>
+        </div>
+        <div id="eqList" class="eq-list"></div>
+        <div class="button-row">
+          <button id="applyEq" class="primary-button" type="button">应用 EQ</button>
+          <button id="backHome" class="secondary-button" type="button">回到首页</button>
+        </div>
+      </section>
+
+      <section id="page-settings" class="page" data-page="settings">
+        <div class="page-head"><div><h2>设置</h2><p>这里的选项都会落到配置或运行时 XML。</p></div></div>
+        <section class="group">
+          <div class="row">
+            <div class="row-copy"><strong>增强强度</strong><small>限制每段增益，保护原厂余量</small></div>
+            <select id="strengthSelect" aria-label="增强强度">
+              <option value="balanced">平衡</option><option value="strong">明显</option><option value="max">强烈</option>
+            </select>
+          </div>
+          <div class="row">
+            <div class="row-copy"><strong>输出路线</strong><small>自动会读取当前音频设备</small></div>
+            <select id="routeSelect" aria-label="输出路线">
+              <option value="auto">自动</option><option value="speaker">扬声器</option><option value="wired">有线耳机</option><option value="wireless">蓝牙</option>
+            </select>
+          </div>
+          <div class="row">
+            <div class="row-copy"><strong>空间化</strong><small>控制声场宽度，关闭时保留原厂空间化路径</small></div>
+            <button id="spatialToggle" class="switch" type="button" role="switch" aria-checked="true" aria-label="空间化"></button>
+          </div>
+          <div class="row">
+            <div class="row-copy"><strong>低频增强</strong><small>只增加扬声器低频偏移，不改系统音量</small></div>
+            <button id="bassToggle" class="switch" type="button" role="switch" aria-checked="false" aria-label="低频增强"></button>
+          </div>
+          <div class="row">
+            <div class="row-copy"><strong>低功耗保护</strong><small>非强烈模式下限制持续 DSP 负载</small></div>
+            <button id="powerToggle" class="switch" type="button" role="switch" aria-checked="true" aria-label="低功耗保护"></button>
+          </div>
+          <div class="row">
+            <div class="row-copy"><strong>应用后刷新</strong><small>刷新 audioserver 让 XML 尽快生效</small></div>
+            <select id="refreshSelect" aria-label="应用后刷新">
+              <option value="smart">智能刷新</option><option value="force">每次刷新</option><option value="off">不刷新</option>
+            </select>
+          </div>
+          <div class="button-row">
+            <button id="applySettings" class="primary-button" type="button">应用设置</button>
+          </div>
+        </section>
+        <section class="group">
+          <div class="group-header"><h2>安全回退</h2><small>一键恢复原厂 XML</small></div>
+          <p class="group-note">这会关闭 AURORA 增益、清空用户 EQ，并让运行时只绑定设备原厂 XML。</p>
+          <div class="button-row"><button id="restoreStock" class="secondary-button" type="button">进入原厂安全模式</button></div>
+        </section>
+      </section>
+
+      <section id="page-diag" class="page" data-page="diag">
+        <div class="page-head"><div><h2>诊断</h2><p>只显示实际 readback 和运行日志。</p></div><button id="diagRefresh" class="text-button" type="button">刷新</button></div>
+        <section class="group">
+          <div id="diagRows"></div>
+          <pre id="rawStatus" class="diagnostic-pre">尚未读取</pre>
+          <div class="button-row"><button id="copyDiag" class="secondary-button" type="button">复制诊断</button></div>
+        </section>
+      </section>
+    </main>
+
+    <nav class="tabbar" aria-label="主导航">
+      <button class="tab-button" type="button" data-tab="home" aria-selected="true"><span class="tab-icon">⌂</span><span class="tab-label">首页</span></button>
+      <button class="tab-button" type="button" data-tab="eq" aria-selected="false"><span class="tab-icon">◒</span><span class="tab-label">EQ</span></button>
+      <button class="tab-button" type="button" data-tab="settings" aria-selected="false"><span class="tab-icon">⚙</span><span class="tab-label">设置</span></button>
+      <button class="tab-button" type="button" data-tab="diag" aria-selected="false"><span class="tab-icon">≡</span><span class="tab-label">诊断</span></button>
+    </nav>
+  </div>
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+  <script>
+    (function () {
+      "use strict";
+      var MODULE = "/data/adb/modules/AURORA-pro";
+      var CONF = MODULE + "/aurora.conf";
+      var APPLY = MODULE + "/webroot/apply.sh";
+      var STATUS = MODULE + "/module_status";
+      var LOG = MODULE + "/aurora.log";
+      var EXEC_TIMEOUT = 45000;
+      var BANDS = ["31", "62", "125", "250", "500", "1k", "2k", "4k", "8k", "16k"];
+      var PRESETS = [
+        ["dynamic", "自然动态", "层次清楚，适合日常与流行内容"],
+        ["cinema_body", "影院包围", "低频有重量，声场展开，适合电影"],
+        ["music", "音乐饱满", "中低频有弹性，细节保持自然"],
+        ["voice", "人声清晰", "人声靠前，适合播客、对白与通话"],
+        ["custom", "用户自定义", "保留你的 EQ 微调与输出路线"],
+        ["harman_kardon", "哈曼暖声灵感", "温暖厚实，低频圆润不刺耳"],
+        ["xiaomi17_air", "柏林自然灵感", "自然通透，空气感轻盈开阔"],
+        ["night_soft", "北欧温暖", "柔和耐听，适合夜间小音量"],
+        ["vocal_clear", "北欧明亮", "明亮干净，细节与人声更清楚"],
+        ["movie", "动感冲击", "瞬态更有力度，适合动作与节奏"]
+      ];
+      var state = {
+        loaded: false,
+        applying: false,
+        config: {
+          preset: "music", spatial: true, dolby: true,
+          geq: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+          strength: "strong", refresh: "smart", powerSave: true,
+          superBass: false, outputRoute: "auto", safeMode: false
+        },
+        status: {},
+        raw: ""
+      };
+      var toastTimer = 0;
+
+      function q(value) {
+        return "'" + String(value).replace(/'/g, "'\\''") + "'";
+      }
+      function normalizeResult(args) {
+        var a = args[0], b = args[1], c = args[2];
+        if (a && typeof a === "object") {
+          return { code: Number(a.errno != null ? a.errno : (a.code != null ? a.code : (a.exitCode || 0))), out: String(a.stdout != null ? a.stdout : (a.out || "")), err: String(a.stderr != null ? a.stderr : (a.err || "")) };
+        }
+        if (typeof a === "number") return { code: a, out: String(b || ""), err: String(c || "") };
+        return { code: 0, out: String(b || a || ""), err: String(c || "") };
+      }
+      function run(command, callback) {
+        var api = window.ksu || window.KSU;
+        if (!api || typeof api.exec !== "function") {
+          callback({ code: 127, out: "", err: "KernelSU WebUI API unavailable" });
+          return;
+        }
+        var done = false;
+        var callbackName = "__aurora_exec_" + Date.now() + "_" + Math.random().toString(36).slice(2);
+        var timer = setTimeout(function () { finish(124, "", "exec timeout"); }, EXEC_TIMEOUT);
+        function finish() {
+          if (done) return;
+          done = true;
+          clearTimeout(timer);
+          try { delete window[callbackName]; } catch (e) { window[callbackName] = null; }
+          callback(normalizeResult(arguments));
+        }
+        window[callbackName] = function (errno, stdout, stderr) { finish(errno, stdout, stderr); };
+        /*
+         * KernelSU exposes two different exec surfaces:
+         * - the native bridge uses (command, JSON options, callback name)
+         * - the newer JS wrapper returns a Promise from (command, options)
+         * Choose one call shape up front. Calling both can execute an apply twice.
+         */
+        var legacyCallback = api.exec.length >= 3;
+        if (legacyCallback) {
+          try {
+            var legacyResult = api.exec(command, JSON.stringify({}), callbackName);
+            if (legacyResult && typeof legacyResult.then === "function") {
+              legacyResult.then(function (value) { finish(value); }).catch(function (error) { finish(1, "", String(error)); });
+            } else if (legacyResult && typeof legacyResult === "object") {
+              finish(legacyResult);
+            }
+          } catch (legacyError) {
+            finish(1, "", String(legacyError));
+          }
+          return;
+        }
+        try {
+          var promiseResult = api.exec(command, {});
+          if (promiseResult && typeof promiseResult.then === "function") {
+            promiseResult.then(function (value) { finish(value); }).catch(function (error) { finish(1, "", String(error)); });
+          } else if (promiseResult !== undefined) {
+            finish(promiseResult);
+          } else {
+            finish(1, "", "KSU exec 未返回结果");
+          }
+        } catch (promiseError) {
+          finish(1, "", String(promiseError));
+        }
+      }
+      function notify(message, isError) {
+        var el = document.getElementById("toast");
+        el.textContent = message;
+        el.classList.toggle("error", !!isError);
+        el.classList.add("show");
+        clearTimeout(toastTimer);
+        toastTimer = setTimeout(function () { el.classList.remove("show"); }, 2800);
+        try { (window.ksu || window.KSU).toast(message); } catch (e) {}
+      }
+      function parseLines(text) {
+        var result = {};
+        String(text || "").split(/\r?\n/).forEach(function (line) {
+          var index = line.indexOf("=");
+          if (index > 0) result[line.slice(0, index)] = line.slice(index + 1);
+        });
+        return result;
+      }
+      function bool(value) { return value === true || value === "true" || value === "1"; }
+      function presetTitle(value) {
+        var key = String(value || "");
+        for (var i = 0; i < PRESETS.length; i += 1) {
+          if (PRESETS[i][0] === key) return PRESETS[i][1];
+        }
+        var aliases = {
+          Dynamic: "自然动态", Movie: "动感冲击", Music: "音乐饱满", Voice: "人声清晰",
+          Custom: "用户自定义", HarmanKardon: "哈曼暖声灵感", Xiaomi17Air: "柏林自然灵感",
+          CinemaBody: "影院包围", VocalClear: "北欧明亮", NightSoft: "北欧温暖"
+        };
+        return aliases[key] || key || "未选择";
+      }
+      function numberList(value) {
+        var values = String(value || "").split(",").slice(0, 10).map(function (item) {
+          var number = parseInt(item, 10);
+          if (isNaN(number)) number = 0;
+          return Math.max(-12, Math.min(12, number));
+        });
+        while (values.length < 10) values.push(0);
+        return values;
+      }
+      function configText() {
+        return [
+          "# AURORA v5.7.0 WebUI configuration",
+          "PRESET_MODE=" + state.config.preset,
+          "DOLBY_ENABLE=" + state.config.dolby,
+          "SPATIAL_ENABLE=" + state.config.spatial,
+          "USER_GEQ=" + state.config.geq.join(","),
+          "ENGINE_STRENGTH=" + state.config.strength,
+          "POWER_SAVE_MODE=" + state.config.powerSave,
+          "AURORA_OUTPUT_ROUTE=" + state.config.outputRoute,
+          "AUDIO_REFRESH_MODE=" + state.config.refresh,
+          "SUPER_BASS_MODE=" + state.config.superBass,
+          "AURORA_SAFE_MODE=" + state.config.safeMode
+        ].join("\n") + "\n";
+      }
+      function parseConfig(text) {
+        var values = parseLines(text);
+        state.config.preset = values.PRESET_MODE || "music";
+        state.config.dolby = values.DOLBY_ENABLE == null ? true : bool(values.DOLBY_ENABLE);
+        state.config.spatial = values.SPATIAL_ENABLE == null ? true : bool(values.SPATIAL_ENABLE);
+        state.config.geq = numberList(values.USER_GEQ);
+        state.config.strength = values.ENGINE_STRENGTH || "strong";
+        state.config.powerSave = values.POWER_SAVE_MODE == null ? true : bool(values.POWER_SAVE_MODE);
+        state.config.outputRoute = values.AURORA_OUTPUT_ROUTE || "auto";
+        state.config.refresh = values.AUDIO_REFRESH_MODE || "smart";
+        state.config.superBass = bool(values.SUPER_BASS_MODE);
+        state.config.safeMode = bool(values.AURORA_SAFE_MODE);
+      }
+      function loadAll(silent) {
+        run("cat " + q(CONF) + " && printf '\\n---STATUS---\\n' && (cat " + q(STATUS) + " 2>/dev/null || true)", function (result) {
+          if (result.code !== 0) {
+            state.loaded = false;
+            setStatus("error", "未连接到模块", result.err || "无法读取配置");
+            if (!silent) notify("无法读取模块配置，请确认已在 KernelSU 中打开", true);
+            return;
+          }
+          var parts = result.out.split("\n---STATUS---\n");
+          parseConfig(parts[0]);
+          state.status = parseLines(parts[1] || "");
+          state.raw = parts[1] || "";
+          state.loaded = true;
+          render();
+          loadDiagnostics();
+          if (!silent) notify("状态已刷新");
+        });
+      }
+      function loadDiagnostics() {
+        run("cat " + q(STATUS) + " 2>/dev/null; printf '\\n---LOG---\\n'; tail -n 40 " + q(LOG) + " 2>/dev/null", function (result) {
+          if (result.code === 0) {
+            state.raw = result.out;
+            renderDiagnostics();
+          }
+        });
+      }
+      function writeAndApply(reason) {
+        if (!state.loaded || state.applying) {
+          notify(state.loaded ? "正在应用上一项改动" : "配置尚未读取成功", true);
+          return;
+        }
+        state.applying = true;
+        render();
+        var payload = configText();
+        var command = "printf '%s' " + q(payload) + " | sh " + q(APPLY) + " --stdin";
+        run(command, function (result) {
+          state.applying = false;
+          var parsed = parseLines(result.out);
+          Object.keys(parsed).forEach(function (key) { state.status[key] = parsed[key]; });
+          state.raw = result.out;
+          render();
+          renderDiagnostics();
+          if (result.code === 0 && parsed.STATUS === "ACTIVE") {
+            notify(reason + "，已生效");
+          } else if (result.code === 3 || parsed.STATUS === "BUSY") {
+            notify("音频正在应用上一项改动，请稍后再试", true);
+          } else if (parsed.STATUS === "DEGRADED") {
+            notify("配置已保存，但 XML 尚未绑定，请查看诊断", true);
+          } else {
+            notify("应用失败：" + (parsed.STATUS || result.err || "未知错误"), true);
+          }
+        });
+      }
+      function setStatus(kind, title, meta) {
+        var dot = document.getElementById("statusDot");
+        dot.className = "status-dot " + (kind || "");
+        document.getElementById("statusTitle").textContent = title;
+        document.getElementById("statusMeta").textContent = meta || "";
+      }
+      function macroValues() {
+        var geq = state.config.geq;
+        return [
+          Math.round((geq[0] + geq[1] + geq[2]) / 3),
+          Math.round((geq[4] + geq[5] + geq[6]) / 3),
+          Math.round((geq[7] + geq[8] + geq[9]) / 3)
+        ].map(function (value) { return Math.max(-6, Math.min(6, value)); });
+      }
+      function applyMacro(group, value) {
+        var geq = state.config.geq.slice();
+        var indexes = group === "bass" ? [0, 1, 2] : (group === "voice" ? [4, 5, 6] : [7, 8, 9]);
+        indexes.forEach(function (index) { geq[index] = Number(value); });
+        state.config.geq = geq;
+        render();
+      }
+      function renderPresets() {
+        var root = document.getElementById("presetGrid");
+        root.innerHTML = "";
+        PRESETS.forEach(function (preset) {
+          var button = document.createElement("button");
+          button.type = "button";
+          button.className = "preset-button";
+          button.setAttribute("aria-pressed", String(state.config.preset === preset[0]));
+          button.innerHTML = "<span><strong>" + preset[1] + "</strong><small>" + preset[2] + "</small></span>";
+          button.addEventListener("click", function () {
+            state.config.preset = preset[0];
+            render();
+            writeAndApply("预设 " + preset[1]);
+          });
+          root.appendChild(button);
+        });
+      }
+      function renderEq() {
+        var root = document.getElementById("eqList");
+        root.innerHTML = "";
+        BANDS.forEach(function (band, index) {
+          var row = document.createElement("label");
+          row.className = "eq-row";
+          row.innerHTML = "<span class=\"eq-frequency\">" + band + " Hz</span><input type=\"range\" min=\"-12\" max=\"12\" step=\"1\" value=\"" + state.config.geq[index] + "\" aria-label=\"" + band + " Hz EQ\"><output>" + state.config.geq[index] + " 档</output>";
+          var input = row.querySelector("input");
+          var output = row.querySelector("output");
+          input.addEventListener("input", function () {
+            state.config.geq[index] = Number(input.value);
+            output.textContent = input.value + " 档";
+            updateMacrosOnly();
+          });
+          root.appendChild(row);
+        });
+      }
+      function updateMacrosOnly() {
+        var values = macroValues();
+        ["macroBass", "macroVoice", "macroAir"].forEach(function (id, index) {
+          document.getElementById(id).value = values[index];
+          document.getElementById(id + "Value").textContent = (values[index] > 0 ? "+" : "") + values[index] + " 档";
+        });
+      }
+      function updateBusyState() {
+        var ids = [
+          "refreshButton", "masterToggle", "abButton", "applyHome", "openEq",
+          "resetEq", "applyEq", "strengthSelect", "routeSelect", "spatialToggle",
+          "bassToggle", "powerToggle", "refreshSelect", "applySettings", "restoreStock"
+        ];
+        ids.forEach(function (id) {
+          var element = document.getElementById(id);
+          if (!element) return;
+          element.disabled = state.applying;
+          element.setAttribute("aria-disabled", String(state.applying));
+        });
+        document.querySelectorAll(".preset-button, .eq-row input, #macroBass, #macroVoice, #macroAir").forEach(function (element) {
+          element.disabled = state.applying;
+          element.setAttribute("aria-disabled", String(state.applying));
+        });
+        document.querySelector(".app-shell").setAttribute("aria-busy", String(state.applying));
+      }
+      function setSwitch(id, value) {
+        var button = document.getElementById(id);
+        button.setAttribute("aria-checked", String(!!value));
+      }
+      function renderDiagnostics() {
+        var root = document.getElementById("diagRows");
+        var entries = [
+          ["状态", state.status.STATUS || "-"],
+          ["XML 基底", state.status.XML_BASE || "-"],
+          ["XML 模式", state.status.XML_MODE || "-"],
+          ["挂载", state.status.XML_MOUNT || "-"],
+          ["当前预设", presetTitle(state.status.PRESET_MODE || state.config.preset)],
+          ["实际输出", state.status.EFFECTIVE_ROUTE || "-"],
+          ["路线置信度", state.status.ROUTE_CONFIDENCE || "-"],
+          ["空间 XML", (state.status.SPATIAL_XML_ACTIVE || "-") + " · " + (state.status.SPATIAL_XML_MOUNT || "-")],
+          ["属性状态", state.status.PROPS_ACTIVE || "-"],
+          ["音频刷新", (state.status.AUDIO_RESTART || "-") + " · " + (state.status.AUDIO_REASON || "-")],
+          ["原生音量档位", state.status.VOLUME_STEPS || "-"],
+          ["属性回读", state.status.PROP_READBACK || "-"],
+          ["属性写入", (state.status.PROP_OK || "0") + " 成功 / " + (state.status.PROP_FAIL || "0") + " 失败"]
+        ];
+        root.innerHTML = entries.map(function (entry) {
+          return "<div class=\"row\"><div class=\"row-copy\"><strong>" + entry[0] + "</strong></div><span class=\"row-value\">" + entry[1] + "</span></div>";
+        }).join("");
+        document.getElementById("rawStatus").textContent = state.raw || "尚未读取";
+      }
+      function render() {
+        renderPresets();
+        renderEq();
+        updateMacrosOnly();
+        setSwitch("masterToggle", state.config.dolby && !state.config.safeMode);
+        setSwitch("spatialToggle", state.config.spatial);
+        setSwitch("bassToggle", state.config.superBass);
+        setSwitch("powerToggle", state.config.powerSave);
+        document.getElementById("strengthSelect").value = state.config.strength;
+        document.getElementById("routeSelect").value = state.config.outputRoute;
+        document.getElementById("refreshSelect").value = state.config.refresh;
+        var status = state.status.STATUS || "";
+        if (state.applying) setStatus("warn", "正在应用调音", "音频服务可能短暂中断，请保持页面打开");
+        else if (status === "ACTIVE") setStatus("active", "AURORA 正在工作", presetTitle(state.status.PRESET_MODE || state.config.preset) + " · " + (state.status.EFFECTIVE_ROUTE || "speaker"));
+        else if (status === "STOCK") setStatus("warn", "原厂基底正在工作", "AURORA 增量已关闭");
+        else if (status === "XML_BOUND") setStatus("warn", "已绑定 XML，等待服务应用", "启动阶段完成，稍后会继续校验");
+        else if (status === "DEGRADED") setStatus("warn", "配置已保存，等待绑定", state.status.XML_BASE || "未找到 Dolby XML");
+        else if (status === "CONFIG_ERROR") setStatus("error", "配置读取失败", "当前页面为只读");
+        else if (status) setStatus("error", "模块未就绪", status);
+        document.getElementById("stateConfig").textContent = state.loaded ? (state.config.safeMode ? "原厂安全" : "已读取") : "未读取";
+        document.getElementById("stateProfile").textContent = presetTitle(state.status.PRESET_MODE || state.config.preset);
+        document.getElementById("stateXml").textContent = state.status.XML_MODE || "等待应用";
+        document.getElementById("stateRoute").textContent = state.status.EFFECTIVE_ROUTE || state.config.outputRoute;
+        document.getElementById("restartHint").textContent = state.applying ? "正在应用" : (state.status.AUDIO_RESTART === "requested" ? "已请求刷新" : (state.status.AUDIO_RESTART === "ok" ? "刷新完成" : "应用后刷新音频"));
+        document.getElementById("macroNote").textContent = state.applying ? "正在应用..." : "改动后点应用";
+        renderDiagnostics();
+        updateBusyState();
+      }
+      function showPage(page) {
+        document.querySelectorAll(".page").forEach(function (element) { element.classList.toggle("active", element.dataset.page === page); });
+        document.querySelectorAll(".tab-button").forEach(function (element) { element.setAttribute("aria-selected", String(element.dataset.tab === page)); });
+      }
+      function bind() {
+        document.querySelectorAll(".tab-button").forEach(function (button) { button.addEventListener("click", function () { showPage(button.dataset.tab); }); });
+        document.getElementById("refreshButton").addEventListener("click", function () { loadAll(false); });
+        document.getElementById("masterToggle").addEventListener("click", function () { state.config.dolby = !state.config.dolby; state.config.safeMode = false; render(); writeAndApply(state.config.dolby ? "AURORA 已开启" : "已切换原厂 XML"); });
+        document.getElementById("abButton").addEventListener("click", function () { state.config.dolby = !state.config.dolby; state.config.safeMode = false; render(); writeAndApply(state.config.dolby ? "A 方案" : "B 原厂"); });
+        document.getElementById("macroBass").addEventListener("input", function () { applyMacro("bass", this.value); });
+        document.getElementById("macroVoice").addEventListener("input", function () { applyMacro("voice", this.value); });
+        document.getElementById("macroAir").addEventListener("input", function () { applyMacro("air", this.value); });
+        document.getElementById("applyHome").addEventListener("click", function () { writeAndApply("快速调音"); });
+        document.getElementById("openEq").addEventListener("click", function () { showPage("eq"); });
+        document.getElementById("backHome").addEventListener("click", function () { showPage("home"); });
+        document.getElementById("resetEq").addEventListener("click", function () { state.config.geq = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]; render(); });
+        document.getElementById("applyEq").addEventListener("click", function () { writeAndApply("EQ"); });
+        document.getElementById("strengthSelect").addEventListener("change", function () { state.config.strength = this.value; });
+        document.getElementById("routeSelect").addEventListener("change", function () { state.config.outputRoute = this.value; });
+        document.getElementById("refreshSelect").addEventListener("change", function () { state.config.refresh = this.value; });
+        document.getElementById("spatialToggle").addEventListener("click", function () { state.config.spatial = !state.config.spatial; render(); });
+        document.getElementById("bassToggle").addEventListener("click", function () { state.config.superBass = !state.config.superBass; render(); });
+        document.getElementById("powerToggle").addEventListener("click", function () { state.config.powerSave = !state.config.powerSave; render(); });
+        document.getElementById("applySettings").addEventListener("click", function () { writeAndApply("设置"); });
+        document.getElementById("restoreStock").addEventListener("click", function () {
+          if (!window.confirm("进入原厂安全模式并清空 AURORA 调音？")) return;
+          state.config.dolby = false; state.config.safeMode = true; state.config.spatial = false; state.config.superBass = false;
+          state.config.geq = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]; state.config.preset = "dynamic";
+          render(); writeAndApply("原厂安全模式");
+        });
+        document.getElementById("diagRefresh").addEventListener("click", function () { loadAll(false); loadDiagnostics(); });
+        document.getElementById("copyDiag").addEventListener("click", function () {
+          var text = document.getElementById("rawStatus").textContent;
+          if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(function () { notify("诊断已复制"); }).catch(function () { notify("复制失败", true); });
+          else notify("当前 WebView 不支持复制", true);
+        });
+      }
+      bind();
+      render();
+      loadAll(true);
+    }());
+  </script>
+</body>
+</html>

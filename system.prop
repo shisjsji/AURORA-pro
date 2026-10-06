@@ -1,0 +1,2 @@
+# AURORA v5.7.0 keeps audio properties runtime-only so their OEM values can
+# be snapshotted before activation and restored by safe mode or uninstall.
